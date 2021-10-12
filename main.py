@@ -17,9 +17,6 @@ class User:
         # add a team member
         self.data[self.email] = {'name': self.name, 'password': self.password_hash}
 
-
-    
-
 def user_registration():
     new = input("Do you want to register a new user (y/n)? ")#option given for testing purposes only, to be removed in later version
     if new == 'y':#prompt and record the users sign up information
@@ -27,22 +24,21 @@ def user_registration():
         email = input("Enter Email Address: ")
         password = input("Enter Password: ")
         reenter = input("Re-enter Password: ")
-        
+
         if password == reenter:
             print("Passwords Match.")
             writer = open('users.json', 'a')
             hash = crypt.crypt(password)#encrypt the users password before it is stored
             #wrap users credentials to be stored in json file
             new_user = User(user, email, hash)
-            new_user.toJSON
+            new_user.toJSON()
             with open("users.json", "a") as user_file:
                 json.dump(new_user.data, user_file)
-                #user_file.write("\n")
                 user_file.close()
             print("User Registered.")
 
         else:
-            print("Passwords Don't Match") 
+            print("Passwords Don't Match")
 
     if new == 'n':
         #exit
@@ -52,67 +48,41 @@ def user_registration():
 def login():#errors if wrong email is entered
     login = input("Would you like to login (y/n)? ")
     if login == 'y':
-        #while loop flags check if password was wrong 
-        login_flag = False
 
         #open the file to get the users info
         f = open("users.json",)
         user_cred = json.load(f)
 
-        while(login_flag == False):
+        while True:
             #promped for login credentials
             email_login = input("Enter Email Address: ")
-             
+
             plaintext = input("Enter Password: ")
 
-            hashed = user_cred[email_login]["password"]
+            hashed = user_cred[email_login]["password"] if email_login in user_cred else None
 
             if(crypt.crypt(plaintext, hashed) == hashed):
                 print("Welcome to SecureDrop.")
-                login_flag = True
+                break
             else:
                 print("Email and Password Combination Invalid.\n\n")
 
-            
+
 
 def main():
     #check to see if there are no users
-    filesize = os.path.getsize("users.json")
-
-    if filesize == 0:
+    users = []
+    try:
+        with open("users.json", "r") as f:
+            users = json.loads(f.read())
+    except FileNotFoundError:
         print("No users are registered with this client \n")
         user_registration()
-    
+
     login()
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 def login_test_logic():
     user_registration()
@@ -128,9 +98,6 @@ def login_test_logic():
         raise ValueError("hashed version doesn't validate against original")
         print("value error raised")
 
-
-
-    #
     #passed_hash = crypt.crypt(passwd)
     if(crypt.crypt(plaintext, hashed) == hashed):
         print("authentication accepted")
