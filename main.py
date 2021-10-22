@@ -17,6 +17,25 @@ class User:
         # add a team member
         self.data[self.email] = {'name': self.name, 'password': self.password_hash}
 
+
+class Contact:
+    def __init__(self, name, email, newemail):
+        self.name = name
+        #self.email = email
+        self.email_hash = newemail
+        self.toJSON()
+
+    def toJSON(self):
+        # instantiate an empty dict
+        self.data = {}
+
+        # add a team member
+        #self.data[self.name] = {'email': self.email, 'newemail':self.email_hash}
+        self.data[self.name] = {'newemail':self.email_hash}
+        #self.data[self.name] = {'email':self.email}
+
+
+
 def user_registration():
     new = input("Do you want to register a new user (y/n)? ")#option given for testing purposes only, to be removed in later version
     if new == 'y':#prompt and record the users sign up information
@@ -68,7 +87,26 @@ def login():#errors if wrong email is entered
                 print("Email and Password Combination Invalid.\n\n")
 
 
+def addContact():
+    print(' \"add" -> Add a new contact \n')
+    print(' \"list" -> List all online contacts \n')
+    print(' \"send" -> Transfer file on contact \n')
+    print(' \"exit" -> Exit SecureDrop')
+    contact = input("Please type in one of the four options: ")
 
+    if contact == "add":
+        newcontact = input("Enter Full Name: \n")
+        newemail = input("Enter Email Address: \n")
+
+        hash = crypt.crypt(newemail)
+       
+        new_contact= Contact(newcontact, newemail, hash)
+        new_contact.toJSON()
+        with open("contact.json", "a") as contact_file:
+            json.dump(new_contact.data, contact_file)
+            contact_file.close()
+        
+  
 def main():
     #check to see if there are no users
     users = []
@@ -80,9 +118,11 @@ def main():
         user_registration()
 
     login()
+    addContact()
 
 if __name__ == "__main__":
     main()
+
 
 def login_test_logic():
     user_registration()
