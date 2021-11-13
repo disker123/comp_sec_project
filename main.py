@@ -105,6 +105,13 @@ def addContact():
         with open("contact.json", "a") as contact_file:
             json.dump(new_contact.data, contact_file)
             contact_file.close()
+            
+    if contact == "list":
+       print("The following contacts are online: \n") 
+       with open("contact.json", "r") as contact_file: 
+           for key in contact_file:
+               print(contact_file[key])
+       #print("* " + newcontact) 
         
   
 def main():
