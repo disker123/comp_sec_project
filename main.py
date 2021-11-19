@@ -31,7 +31,7 @@ class Contact:
 
         # add a team member
         #self.data[self.name] = {'email': self.email, 'newemail':self.email_hash}
-        self.data[self.name] = {'newemail':self.email_hash}
+        self.data = {self.name:self.email_hash,}
         #self.data[self.name] = {'email':self.email}
 
 
@@ -94,6 +94,7 @@ def addContact():
     print(' \"exit" -> Exit SecureDrop')
     contact = input("Please type in one of the four options: ")
 
+    #the contact file must contain an empty python dict({}) when no contacts are present
     if contact == "add":
         newcontact = input("Enter Full Name: \n")
         newemail = input("Enter Email Address: \n")
@@ -102,16 +103,29 @@ def addContact():
        
         new_contact= Contact(newcontact, newemail, hash)
         new_contact.toJSON()
-        with open("contact.json", "a") as contact_file:
-            json.dump(new_contact.data, contact_file)
-            contact_file.close()
-            
+#        with open("contact.json", "a") as contact_file:
+#            json.dump(new_contact.data, contact_file)
+#            contact_file.close()
+
+        with open("contact.json", "r+") as contact_file:
+
+            data = json.load(contact_file)
+
+            data.update(new_contact.data)
+
+            contact_file.seek(0)
+
+            json.dump(data, contact_file)
+
     if contact == "list":
-       print("The following contacts are online: \n") 
-       with open("contact.json", "r") as contact_file: 
-           for key in contact_file:
-               print(contact_file[key])
-       #print("* " + newcontact) 
+        print("The following contacts are online: \n") 
+       
+        f = open("contact.json",)
+        contact_file = json.load(f)
+        for key in contact_file:
+            print(key)
+
+
         
   
 def main():
@@ -124,7 +138,7 @@ def main():
         print("No users are registered with this client \n")
         user_registration()
 
-    login()
+#    login()
     addContact()
 
 if __name__ == "__main__":
