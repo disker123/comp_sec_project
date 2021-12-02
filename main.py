@@ -1,4 +1,5 @@
 import os
+from socket import *
 import crypt
 from hmac import compare_digest as compare_hash
 import json
@@ -19,10 +20,11 @@ class User:
 
 
 class Contact:
-    def __init__(self, name, email, newemail):
+    def __init__(self, name, newemail):
         self.name = name
         #self.email = email
         self.email_hash = newemail
+#        self.ip_addr = IP_addr
         self.toJSON()
 
     def toJSON(self):
@@ -31,7 +33,7 @@ class Contact:
 
         # add a team member
         #self.data[self.name] = {'email': self.email, 'newemail':self.email_hash}
-        self.data = {self.name:self.email_hash,}
+        self.data = {self.name:self.email_hash}
         #self.data[self.name] = {'email':self.email}
 
 
@@ -100,22 +102,37 @@ def addContact():
         newemail = input("Enter Email Address: \n")
 
         hash = crypt.crypt(newemail)
-       
-        new_contact= Contact(newcontact, newemail, hash)
-        new_contact.toJSON()
-#        with open("contact.json", "a") as contact_file:
-#            json.dump(new_contact.data, contact_file)
-#            contact_file.close()
+        #gets your name to send to the server
+        f = open("users.json",)
+        user_cred = json.load(f)
+        for key in user_cred:
+            msg = "connection request from " + key + " "
+        #sets up to communicate with server
+        ip= ("127.0.0.1",12345)
+        client_socket=socket(AF_INET, SOCK_DGRAM)
+        client_socket.sendto(msg.encode("utf-8"),("127.0.0.1",12345))
+        data, addr = client_socket.recvfrom(4096)
+        print("server says")
+        print(str(data))
+        
+        #if the server agreed to connect then add the user to your contacts
+        if(data.decode('UTF-8') == 'y'):
+            print('Received confirmation')
+            new_contact= Contact(newemail, hash)
+            new_contact.toJSON()
+            #make the contact and write it to the contact file
+            with open("contact.json", "r+") as contact_file:
+                contact_data = json.load(contact_file)
+                contact_data.update(new_contact.data)
+                contact_file.seek(0)
+                json.dump(contact_data, contact_file)
 
-        with open("contact.json", "r+") as contact_file:
+        else:
+            print('Verification failed')
+        
+        client_socket.close()
 
-            data = json.load(contact_file)
-
-            data.update(new_contact.data)
-
-            contact_file.seek(0)
-
-            json.dump(data, contact_file)
+        
 
     if contact == "list":
         print("The following contacts are online: \n") 
