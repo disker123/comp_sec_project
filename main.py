@@ -20,11 +20,11 @@ class User:
 
 
 class Contact:
-    def __init__(self, name, newemail):
+    def __init__(self, name, newemail, IP_addr:tuple):
         self.name = name
         #self.email = email
         self.email_hash = newemail
-#        self.ip_addr = IP_addr
+        self.ip_addr = IP_addr
         self.toJSON()
 
     def toJSON(self):
@@ -33,7 +33,7 @@ class Contact:
 
         # add a team member
         #self.data[self.name] = {'email': self.email, 'newemail':self.email_hash}
-        self.data = {self.name:self.email_hash}
+        self.data = {self.name:(self.email_hash,self.ip_addr)}
         #self.data[self.name] = {'email':self.email}
 
 
@@ -118,14 +118,12 @@ def addContact():
         #if the server agreed to connect then add the user to your contacts
         if(data.decode('UTF-8') == 'y'):
             print('Received confirmation')
-            new_contact= Contact(newemail, hash)
+            new_contact= Contact(newemail, hash, ip)
             new_contact.toJSON()
             #make the contact and write it to the contact file
             with open("contact.json", "r+") as contact_file:
-                contact_data = json.load(contact_file)
-                contact_data.update(new_contact.data)
-                contact_file.seek(0)
-                json.dump(contact_data, contact_file)
+                json.dump(new_contact.data, contact_file)
+                contact_file.close()
 
         else:
             print('Verification failed')
@@ -140,8 +138,13 @@ def addContact():
         f = open("contact.json",)
         contact_file = json.load(f)
         for key in contact_file:
-            print(key)
-
+            client_socket=socket(AF_INET, SOCK_DGRAM)
+            msg = "You up?"
+            client_socket.sendto(msg.encode("utf-8"),tuple(contact_file[key][1]))
+            data, addr = client_socket.recvfrom(4096)
+            print(key + " is online")
+        
+        client_socket.close()
 
         
   
