@@ -4,11 +4,17 @@ import crypt
 from hmac import compare_digest as compare_hash
 import json
 
+from drop_server import SecureDropServer
+from drop_client import SecureDropClient
+from drop_config import DropConfig
+
 class User:
     def __init__(self, name, email, password):
         self.name = name
         self.email = email
         self.password_hash = password
+
+    '''
         self.toJSON()
 
     def toJSON(self):
@@ -17,7 +23,7 @@ class User:
 
         # add a team member
         self.data[self.email] = {'name': self.name, 'password': self.password_hash}
-
+    '''
 
 class Contact:
     def __init__(self, name, newemail, IP_addr:tuple):
@@ -25,6 +31,8 @@ class Contact:
         #self.email = email
         self.email_hash = newemail
         self.ip_addr = IP_addr
+
+    '''
         self.toJSON()
 
     def toJSON(self):
@@ -35,7 +43,7 @@ class Contact:
         #self.data[self.name] = {'email': self.email, 'newemail':self.email_hash}
         self.data = {self.name:(self.email_hash,self.ip_addr)}
         #self.data[self.name] = {'email':self.email}
-
+    '''
 
 
 def user_registration():
@@ -52,9 +60,8 @@ def user_registration():
             hash = crypt.crypt(password)#encrypt the users password before it is stored
             #wrap users credentials to be stored in json file
             new_user = User(user, email, hash)
-            new_user.toJSON()
             with open("users.json", "a") as user_file:
-                json.dump(new_user.data, user_file)
+                json.dump(new_user.__dict__, user_file)
                 user_file.close()
             print("User Registered.")
 
@@ -119,18 +126,15 @@ def addContact():
         if(data.decode('UTF-8') == 'y'):
             print('Received confirmation')
             new_contact= Contact(newemail, hash, ip)
-            new_contact.toJSON()
             #make the contact and write it to the contact file
             with open("contact.json", "r+") as contact_file:
-                json.dump(new_contact.data, contact_file)
+                json.dump(new_contact.__dict__, contact_file)
                 contact_file.close()
 
         else:
             print('Verification failed')
         
         client_socket.close()
-
-        
 
     if contact == "list":
         print("The following contacts are online: \n") 
