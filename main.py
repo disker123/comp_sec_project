@@ -47,12 +47,14 @@ def display_help():
 def add_contact(config):
     contact_name = input('Enter Full Name: ')
     contact_email = input('Enter Email Address: ')
-    port = int(input('Enter port: '))
-
-    # TODO find contact ip from email
-
-    config.add_contact(contact_name, contact_email, ('127.0.0.1', 12345))
-    print('Contact added')
+    try:
+        ip = input('Enter ip: ')
+        port = int(input('Enter port: '))
+        config.add_contact(contact_name, contact_email, (ip, port))
+        print('Contact added')
+    except ValueError:
+        print('Invalid port specified')
+        return
 
 def list_contacts(config, client):
     print('The following contacts are online: ')
@@ -73,12 +75,29 @@ def main():
 
     login(config)
 
-    print('Type "help" for Commands.')
-
     client = SecureDropClient(config)
     server = SecureDropServer(config)
 
+    ip, port = ('127.0.0.1', 12345)
+    bound = False
+
+    while not bound:
+        try:
+            server.bind((ip, port))
+            bound = True
+        except:
+            try:
+                port = int(input('Failed to bind to port %d. Enter a new port: '))
+                if port < 23 or port > 65535:
+                    raise ValueError
+            except ValueError:
+                print('Invalid port')
+
     server.start()
+    print('Listening on %s:%d' % server.host)
+
+    print('Type "help" for Commands.')
+
 
     while True:
         command_input = input('secure_drop> ').split(' ')

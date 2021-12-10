@@ -75,7 +75,6 @@ class SecureDropServer(threading.Thread):
 
                 #TODO check if in contacts
                 
-                #pdb.set_trace()
                 cmd = decryptor.decrypt(conn.recv(1))
                 if cmd == COMMAND_PING:
                     print('Ping from ' + client_email.decode())

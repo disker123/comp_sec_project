@@ -83,10 +83,11 @@ class DropConfig():
         cipher = AES.new(self.contacts_key, AES.MODE_EAX, nonce=nonce)
         return cipher.decrypt(encrypted_data)
 
-    def add_contact(self, name, email, ip):
+    def add_contact(self, name, email, host):
         contact = {
             'name': name,
-            'email': email
+            'email': email,
+            'host': host
         }
         self.contacts[email] = contact        
 
@@ -94,7 +95,8 @@ class DropConfig():
 
         encrypted_contact = {
             'name': self.encrypt_contact_info(name),
-            'email': self.encrypt_contact_info(name)
+            'email': encrypted_email,
+            'ip': self.encrypt_contact_info()
         }
 
         self.users[email]['contacts'][encrypted_email] = encrypted_contact
