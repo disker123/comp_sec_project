@@ -80,13 +80,21 @@ class SecureDropServer(threading.Thread):
                 if not client_email.decode().lower() in self.config.contacts:
                     return False
 
+                conn.send(encryptor.encrypt(b'\x01'))
+
                 contact = self.config.contacts[client_email.decode().lower()]
-                cmd = decryptor.decrypt(conn.recv(1))
+                cmd = decryptor.decrypt(conn.recv(32))
+
+                print('Email: %s, Command length: %d' % (client_email.decode(), len(cmd)))
+
+                if len(cmd) == 0:
+                    return False
+                print('Got command ' + str(cmd[0]))
                 if cmd == COMMAND_PING:
                     #print('Ping from ' + client_email.decode())
                     conn.send(encryptor.encrypt(COMMAND_PING))
                 elif cmd == COMMAND_SEND:
-                    if input("\nContact '%s <%s>' is sending a file. Accept(y/n): ") == 'y':
+                    if input("\nContact '%s <%s>' is sending a file. Accept(y/n): " % (contact['name'], contact['email'])) == 'y':
                         conn.send(encryptor.encrypt(b'\x01'))
                         sig = decryptor.decrypt(conn.recv(256))
                         filename = os.path.basename(read_encrypted_string(conn, decryptor))
@@ -186,7 +194,7 @@ class SecureDropClient:
             self.encryptor = encryptor
             self.server_email = server_email
             self.server_key = server_key
-            return True
+            return decryptor.decrypt(sock.recv(1)) == b'\x01'
         
         except (ValueError, TypeError):
             print('Failed to decrypt message')
@@ -197,11 +205,13 @@ class SecureDropClient:
         return False
 
     def ping(self, email='server@email.com', host=('127.0.0.1', 12345)):
-        if self.connect(email, host):
-            with self.sock:
-                self.sock.send(self.encryptor.encrypt(COMMAND_PING))
-                return COMMAND_PING == self.decryptor.decrypt(self.sock.recv(1))
-
+        try:
+            if self.connect(email, host):
+                with self.sock:
+                    self.sock.send(self.encryptor.encrypt(COMMAND_PING))
+                    return COMMAND_PING == self.decryptor.decrypt(self.sock.recv(1))
+        except:
+            pass
         return False
 
     def send_file(self, email, host, file):

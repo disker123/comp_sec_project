@@ -15,45 +15,47 @@ class DropConfig():
         self.user_file = user_file
 
     def save_user(self, user):
-        with open(self.user_file, 'rw') as f:
-            users = 
-            json.dump(self.users, f)
+        with open(self.user_file, 'r') as f:
+            users = self.get_users()
+            users[user['email']] = user
+            with open(self.user_file, 'w') as f:
+                json.dump(users, f)
+
+    def get_users(self):
+        with open(self.user_file, 'r') as f:
+            try:
+                return json.load(f)
+            except json.decoder.JSONDecodeError:
+                pass
+            
+        return {}
 
     def login(self, email, password):
-        #return crypt.crypt(password, self.users[email]['password'])
-        try:
-            with open(user_file, 'r') as f:
-                users = json.load(f)
-                if email in users:
-                    user = users[email]
-                    hashed = user['password']
-                    if compare_hash(crypt.crypt(password, hashed), hashed):
-                        self.key = RSA.import_key(base64.b64decode(user['private_key']), password)
-                        cipher = PKCS1_OAEP.new(self.key)
-                        self.contacts_key = cipher.decrypt(base64.b64decode(user['contacts_key']))
+        users = self.get_users()
+        if email in users:
+            user = users[email]
+            hashed = user['password']
+            if compare_hash(crypt.crypt(password, hashed), hashed):
+                self.key = RSA.import_key(base64.b64decode(user['private_key']), password)
+                cipher = PKCS1_OAEP.new(self.key)
+                self.contacts_key = cipher.decrypt(base64.b64decode(user['contacts_key']))
 
-                        self.contacts = {}
+                self.contacts = {}
 
-                        for encrypted_contact in user['contacts']:
-                            contact_email = self.decrypt_contact_info(encrypted_contact['email'])
-                            contact = {
-                                'email': contact_email,
-                                'name': self.decrypt_contact_info(encrypted_contact['name']),
-                                'host': (self.decrypt_contact_info(encrypted_contact['ip']), encrypted_contact['port'])
-                            }
-                            
-                            self.contacts[contact_email.lower()] = contact
+                for encrypted_contact in user['contacts']:
+                    contact_email = self.decrypt_contact_info(encrypted_contact['email'])
+                    contact = {
+                        'email': contact_email,
+                        'name': self.decrypt_contact_info(encrypted_contact['name']),
+                        'host': (self.decrypt_contact_info(encrypted_contact['ip']), encrypted_contact['port'])
+                    }
+                    
+                    self.contacts[contact_email.lower()] = contact
 
-                        self.email = email
-                        return True
+                self.email = email
+                return True
+
         return False
-        except FileNotFoundError:
-            self.users = {}
-        except json.decoder.JSONDecodeError:
-            print('Failed to parse users file')
-            self.users = {}
-
-        
 
     def register(self, name, email, password):
         password_hash = crypt.crypt(password)
@@ -72,8 +74,7 @@ class DropConfig():
             'contacts_key': base64.b64encode(encrypted_key).decode(),
             'contacts': []
         }
-        self.users[email] = user
-        self.save_users()
+        self.save_user(user)
 
     def encrypt_contact_info(self, data):
         cipher = AES.new(self.contacts_key, AES.MODE_EAX)
@@ -104,12 +105,15 @@ class DropConfig():
             'port': host[1]
         }
 
-        encrypted_contacts = self.users[self.email]['contacts']
+        users = self.get_users()
+        if self.email in users:
+            user = users[self.email]
+            encrypted_contacts = user['contacts']
 
-        for i in range(len(encrypted_contacts)):
-            if self.decrypt_contact_info(encrypted_contacts[i]['email']).lower() == email:
-                del encrypted_contacts[i]
+            for i in range(len(encrypted_contacts)):
+                if self.decrypt_contact_info(encrypted_contacts[i]['email']).lower() == email:
+                    del encrypted_contacts[i]
 
-        encrypted_contacts.append(encrypted_contact)
+            encrypted_contacts.append(encrypted_contact)
 
-        self.save_users()
+            self.save_user(user)

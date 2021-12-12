@@ -70,7 +70,7 @@ def main():
         filename = 'users.json'
     config = DropConfig(filename)
 
-    if len(config.users) == 0:
+    if len(config.get_users()) == 0:
         print("No users are registered with this client \n")
     user_registration(config)
 
