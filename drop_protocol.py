@@ -28,15 +28,6 @@ magic_string = b'SECUREDROP'
 COMMAND_PING = b'\x00'
 COMMAND_SEND = b'\x01'
 
-def read_encrypted_string(sock, decryptor):
-    length = struct.unpack('I', decryptor.decrypt(sock.recv(4)))[0]
-    return decryptor.decrypt(sock.recv(length)).decode()
-
-def encrypt_string(sock, encryptor, s):
-    encrypted_length = encryptor.encrypt(struct.pack('I', len(s)))
-    sock.send(encrypted_length)
-    sock.send(encryptor.encrypt(bytes(s, 'utf8')))
-
 class SecureDropServer(threading.Thread):
     def __init__(self, config, input_mutex):
         threading.Thread.__init__(self)
@@ -95,18 +86,28 @@ class SecureDropServer(threading.Thread):
                 if cmd == COMMAND_PING:
                     conn.send(encryptor.encrypt(COMMAND_PING))
                 elif cmd == COMMAND_SEND:
+                    self.input_mutex.acquire()
+                    print('\n')
                     r = ''
-                    while r != 'y' and r != 'n':
-                        r = input("\nContact '%s <%s>' is sending a file. Accept(y/n): " % (contact['name'], contact['email']))
+                    try:
+                        while r != 'y' and r != 'n':
+                            r = input("Contact '%s <%s>' is sending a file. Accept(y/n): " % (contact['name'], contact['email']))
+                    finally:
+                        self.input_mutex.release()
 
                     if r == 'y':
                         conn.send(encryptor.encrypt(b'\x01'))
                         filename_length = struct.unpack('I', decryptor.decrypt(conn.recv(4)))[0]
                         filename = os.path.basename(decryptor.decrypt(conn.recv(filename_length)).decode())
-                        out_dir = 'saved_files'
-                        if not os.path.isdir(out_dir):
-                            os.mkdir(out_dir)
                         
+                        self.input_mutex.acquire()
+                        try:
+                            out_dir = input('Where do you want to store %s: ' % filename)
+                            if not os.path.isdir(out_dir):
+                                os.mkdir(out_dir)
+                        finally:
+                            self.input_mutex.release()
+
                         loc = os.path.join(out_dir, filename)
                         
                         with open(loc, 'wb') as f:
@@ -123,19 +124,12 @@ class SecureDropServer(threading.Thread):
                                 f.write(chunk)
                                 h.update(chunk)
                                 bytes_gotten += len(chunk)
-                            
-                            data = decryptor.decrypt(conn.recv(file_size))
-                            h.update(data)
-                            f.write(data)
 
                             try:
                                 verifier.verify(h, sig)
                                 #print('Saved file %s' % loc)
-                                f.close()
                                 conn.send(encryptor.encrypt(b'\x01'))
-                                conn.close()
                             except (ValueError, TypeError):
-                                f.close()
                                 os.remove(loc)
                                 conn.send(encryptor.encrypt(b'\x00'))
                     else:
@@ -258,7 +252,7 @@ class SecureDropClient:
                                 chunk = f.read(1024)
                                 sock.send(self.encryptor.encrypt(chunk))
                                 bytes_sent += len(chunk)
-                            
+                            sock.settimeout(1)
                             return self.decryptor.decrypt(sock.recv(1)) == b'\x01'
         except (struct.error, socket.timeout):
             pass

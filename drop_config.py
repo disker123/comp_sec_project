@@ -17,7 +17,7 @@ class DropConfig():
 
     def save_user(self, user):
         users = self.get_users()
-        users[user['email']] = user
+        users[self.hash_email(self.decrypt_contact_info(user['email']))] = user
         with open(self.user_file, 'w') as f:
             json.dump(users, f)
 
@@ -32,12 +32,17 @@ class DropConfig():
             pass
         return {}
 
+    def hash_email(self, email):
+        return base64.b64encode(SHA256.new(bytes(email, 'utf8').lower()).digest()).decode()
+
     def login(self, email, password):
         users = self.get_users()
-        if email in users:
-            user = users[email]
+        email_hash = self.hash_email(email)
+        if email_hash in users:
+            user = users[email_hash]
             hashed = user['password']
             if compare_hash(crypt.crypt(password, hashed), hashed):
+                self.email = email
                 self.key = RSA.import_key(base64.b64decode(user['private_key']), password)
                 cipher = PKCS1_OAEP.new(self.key)
                 self.contacts_key = cipher.decrypt(base64.b64decode(user['contacts_key']))
@@ -54,7 +59,6 @@ class DropConfig():
                     
                     self.contacts[contact_email.lower()] = contact
 
-                self.email = email
                 return True
 
         return False
@@ -69,8 +73,8 @@ class DropConfig():
         encrypted_key = cipher.encrypt(self.contacts_key)
 
         user = {
-            'name': name,
-            'email': email,
+            'name': self.encrypt_contact_info(name),
+            'email': self.encrypt_contact_info(email),
             'password': password_hash,
             'private_key': base64.b64encode(self.key.export_key(format='PEM', passphrase=password)).decode(),
             'contacts_key': base64.b64encode(encrypted_key).decode(),
@@ -109,7 +113,8 @@ class DropConfig():
 
         users = self.get_users()
         if self.email in users:
-            user = users[self.email]
+            email_hash = self.hash_email(self.email)
+            user = users[email_hash]
             encrypted_contacts = user['contacts']
 
             for i in range(len(encrypted_contacts)):

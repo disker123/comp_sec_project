@@ -23,8 +23,6 @@ def user_registration(config):
 
         else:
             print("Passwords Don't Match")
-    else:
-        print("not adding user")
 
 def login(config):#errors if wrong email is entered
     while True:
@@ -64,7 +62,7 @@ def list_contacts(config, client):
         
         if client.ping(contact['email'], contact['host']):
             print('\t* %s <%s>' % (contact['name'], contact['email']))
-  
+
 def main():
     filename = input('Enter users filename(default: users.json): ')
     if len(filename) == 0:
@@ -111,6 +109,9 @@ def main():
         cmd = command_input[0].lower()
         args = command_input[1:]
 
+        input_mutex.acquire()
+        input_mutex.release()
+
         if cmd.lower() == 'add':
             add_contact(config)
         elif cmd.lower() == 'list':
@@ -131,7 +132,6 @@ def main():
         elif cmd.lower() == 'exit':
             server.running = False
             os._exit(0)
-            return
         elif cmd.lower() == 'help':
             display_help()
         else:
