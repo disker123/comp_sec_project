@@ -29,15 +29,20 @@ COMMAND_PING = b'\x00'
 COMMAND_SEND = b'\x01'
 
 def read_encrypted_string(sock, decryptor):
-    length = struct.unpack('I', decryptor.decrypt(sock.recv(4)))
+    length = struct.unpack('I', decryptor.decrypt(sock.recv(4)))[0]
     return decryptor.decrypt(sock.recv(length)).decode()
 
+def encrypt_string(sock, encryptor, s):
+    encrypted_length = encryptor.encrypt(struct.pack('I', len(s)))
+    sock.send(encrypted_length)
+    sock.send(encryptor.encrypt(bytes(s, 'utf8')))
+
 class SecureDropServer(threading.Thread):
-    def __init__(self, config, host=('127.0.0.1', 12345)):
+    def __init__(self, config, input_mutex):
         threading.Thread.__init__(self)
         self.config = config
-        self.host = host
         self.client_threads = []
+        self.input_mutex = input_mutex
 
     def handle_client(self, conn, addr):
         try:
@@ -85,39 +90,50 @@ class SecureDropServer(threading.Thread):
                 contact = self.config.contacts[client_email.decode().lower()]
                 cmd = decryptor.decrypt(conn.recv(32))
 
-                print('Email: %s, Command length: %d' % (client_email.decode(), len(cmd)))
-
                 if len(cmd) == 0:
                     return False
-                print('Got command ' + str(cmd[0]))
                 if cmd == COMMAND_PING:
-                    #print('Ping from ' + client_email.decode())
                     conn.send(encryptor.encrypt(COMMAND_PING))
                 elif cmd == COMMAND_SEND:
-                    if input("\nContact '%s <%s>' is sending a file. Accept(y/n): " % (contact['name'], contact['email'])) == 'y':
-                        conn.send(encryptor.encrypt(b'\x01'))
-                        sig = decryptor.decrypt(conn.recv(256))
-                        filename = os.path.basename(read_encrypted_string(conn, decryptor))
+                    r = ''
+                    while r != 'y' and r != 'n':
+                        r = input("\nContact '%s <%s>' is sending a file. Accept(y/n): " % (contact['name'], contact['email']))
 
-                        out_dir = input('Where should file %s be saved' % filename)
+                    if r == 'y':
+                        conn.send(encryptor.encrypt(b'\x01'))
+                        filename_length = struct.unpack('I', decryptor.decrypt(conn.recv(4)))[0]
+                        filename = os.path.basename(decryptor.decrypt(conn.recv(filename_length)).decode())
+                        out_dir = 'saved_files'
+                        if not os.path.isdir(out_dir):
+                            os.mkdir(out_dir)
+                        
                         loc = os.path.join(out_dir, filename)
+                        
                         with open(loc, 'wb') as f:
-                            file_size = struct.unpack('Q', conn.recv(8))[0]
+                            file_size = struct.unpack('Q', decryptor.decrypt(conn.recv(8)))[0]
+                            conn.send(encryptor.encrypt(b'\x01'))
+                            sig = decryptor.decrypt(conn.recv(256))
                             bytes_gotten = 0
-                            
                             h = SHA256.new()
 
-                            while bytes_gotten < encrypted_file:
+                            
+                            while bytes_gotten < file_size:
                                 encrypted_chunk = conn.recv(min(1024, file_size - bytes_gotten))
                                 chunk = decryptor.decrypt(encrypted_chunk)
                                 f.write(chunk)
                                 h.update(chunk)
                                 bytes_gotten += len(chunk)
+                            
+                            data = decryptor.decrypt(conn.recv(file_size))
+                            h.update(data)
+                            f.write(data)
 
                             try:
                                 verifier.verify(h, sig)
-                                print('Saved file %s' % loc)
+                                #print('Saved file %s' % loc)
+                                f.close()
                                 conn.send(encryptor.encrypt(b'\x01'))
+                                conn.close()
                             except (ValueError, TypeError):
                                 f.close()
                                 os.remove(loc)
@@ -126,9 +142,9 @@ class SecureDropServer(threading.Thread):
                         conn.send(encryptor.encrypt(b'\x01'))
                 else:
                     print('Invalid command recieved from ' + client_email.decode())
-        except (ValueError, TypeError) as e:
+        except (ValueError, TypeError, struct.error) as e:
             print('Failed to decrypt message')
-            print(traceback.format_exc())
+            #print(traceback.format_exc())
 
     def bind(self, host):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -153,9 +169,9 @@ class SecureDropClient:
         self.config = config
         pass
 
-    def connect(self, email, host):
+    def connect(self, email, host, timeout=5):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(5)
+        sock.settimeout(timeout)
         self.sock = sock
         try:
             sock.connect(host)
@@ -206,7 +222,7 @@ class SecureDropClient:
 
     def ping(self, email='server@email.com', host=('127.0.0.1', 12345)):
         try:
-            if self.connect(email, host):
+            if self.connect(email, host, 3):
                 with self.sock:
                     self.sock.send(self.encryptor.encrypt(COMMAND_PING))
                     return COMMAND_PING == self.decryptor.decrypt(self.sock.recv(1))
@@ -223,18 +239,29 @@ class SecureDropClient:
             return False
 
         sig = pss.new(self.config.key).sign(h)
-
-        if self.connect(email, host):
-            sock.send(self.encryptor.encrypt(COMMAND_SEND))
-            file_size = os.path.getsize(file)
-            with self.sock as sock, open(file, 'rb') as f:
-                sock.send(self.encryptor.encrypt(struct.pack('Q', file_size)))
-                bytes_sent = 0
-                while bytes_sent < file_size:
-                    chunk = f.read(1024)
-                    sock.send(self.encryptor.encrypt(chunk))
-
-                return self.decryptor.decrypt(sock.recv(1)) == b'\x01'
+        try:
+            if self.connect(email, host, 60):
+                file_size = os.path.getsize(file)
+                with self.sock as sock, open(file, 'rb') as f:
+                    sock.send(self.encryptor.encrypt(COMMAND_SEND))
+                    if self.decryptor.decrypt(sock.recv(1)) == b'\x01':
+                        print('Contact has accepted the transfer request.')
+                        sock.send(self.encryptor.encrypt(struct.pack('I', len(file))))
+                        
+                        sock.send(self.encryptor.encrypt(bytes(file, 'utf8')))
+                        sock.send(self.encryptor.encrypt(struct.pack('Q', file_size)))
+                        if self.decryptor.decrypt(sock.recv(1)) == b'\x01':
+                            bytes_sent = 0
+                            sock.send(self.encryptor.encrypt(sig))
+                            
+                            while bytes_sent < file_size:
+                                chunk = f.read(1024)
+                                sock.send(self.encryptor.encrypt(chunk))
+                                bytes_sent += len(chunk)
+                            
+                            return self.decryptor.decrypt(sock.recv(1)) == b'\x01'
+        except (struct.error, socket.timeout):
+            pass
         return False
 
 

@@ -13,21 +13,23 @@ import base64
 class DropConfig():
     def __init__(self, user_file='users.json'):
         self.user_file = user_file
+        self.contacts = {}
 
     def save_user(self, user):
-        with open(self.user_file, 'r') as f:
-            users = self.get_users()
-            users[user['email']] = user
-            with open(self.user_file, 'w') as f:
-                json.dump(users, f)
+        users = self.get_users()
+        users[user['email']] = user
+        with open(self.user_file, 'w') as f:
+            json.dump(users, f)
 
     def get_users(self):
-        with open(self.user_file, 'r') as f:
-            try:
-                return json.load(f)
-            except json.decoder.JSONDecodeError:
-                pass
-            
+        try:
+            with open(self.user_file, 'r') as f:
+                try:
+                    return json.load(f)
+                except json.decoder.JSONDecodeError:
+                    pass
+        except:
+            pass
         return {}
 
     def login(self, email, password):

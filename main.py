@@ -1,4 +1,4 @@
-import os
+import os, signal, sys
 from socket import *
 import crypt
 from hmac import compare_digest as compare_hash
@@ -6,6 +6,7 @@ import json
 
 from drop_protocol import SecureDropClient, SecureDropServer
 from drop_config import DropConfig
+from threading import Lock
 
 def user_registration(config):
     new = input("Do you want to register a new user (y/n)? ")#option given for testing purposes only, to be removed in later version
@@ -76,8 +77,10 @@ def main():
 
     login(config)
 
+    input_mutex = Lock()
+
     client = SecureDropClient(config)
-    server = SecureDropServer(config)
+    server = SecureDropServer(config, input_mutex)
 
     ip, port = ('127.0.0.1', 12345)
     bound = False
@@ -99,9 +102,12 @@ def main():
 
     print('Type "help" for Commands.')
 
-
     while True:
-        command_input = input('secure_drop> ').split(' ')
+        input_mutex.acquire()
+        try:
+            command_input = input('secure_drop> ').split(' ')
+        finally:
+            input_mutex.release()
         cmd = command_input[0].lower()
         args = command_input[1:]
 
@@ -115,15 +121,16 @@ def main():
             else:
                 email = args[0]
                 filename = args[1]
-                if email in client.contacts:
-                    if (client.send_file(email, client.contacts[email].host, filename)):
-                        print()
+                if email in config.contacts:
+                    if (client.send_file(email, config.contacts[email]['host'], filename)):
+                        print('File has been successfully transferred.')
+                    else:
+                        print('Failed to transfer file')
                 else:
                     print('User not in contacts: ' + email)
         elif cmd.lower() == 'exit':
-            
             server.running = False
-            server.join()
+            os._exit(0)
             return
         elif cmd.lower() == 'help':
             display_help()
